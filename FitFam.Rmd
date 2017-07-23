@@ -1,0 +1,106 @@
+---
+title: "FitFam"
+author: "Offiong Eyo"
+date: "July 23, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary  
+###Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.  
+###The purpose of this document is to predict the manner in which 6 participants performed their exercises. This is the “classe” variable in the training set. The machine learning algorithm described here is applied to the 20 test cases available in the test data.  
+
+
+
+##Data Loading & Pre-Processing
+###Here the data is loaded and pre-processed. My approach reserves the test sample for use as a validation set, and partitions the training data 70/30 for use as both the training set and cross-validated test set.  
+
+
+
+```{r libraries, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+library(rpart)
+library(caret)
+library(randomForest)
+```
+
+```{r loader, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+training <- read.csv('C:\\Users\\AKKAN\\Downloads\\pml-training.csv')
+testing  <- read.csv('C:\\Users\\AKKAN\\Downloads\\pml-testing.csv')
+set.seed(12345)   # seed is set for reproducibility of results
+
+
+#create training and testing partitions from the training dataset 
+inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+TrainSet <- training[inTrain, ]
+TestSet  <- training[-inTrain, ]
+dim(TrainSet)
+```  
+
+
+###These 160 variables are further reduced after accounting for Near Zero Variance (NZV) variables, identity variables and majority NA variables. Keeping in mind that all transformations performed on training data must also be performed on cross-validation testing data.   
+
+```{r transformers, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+NZV <- nearZeroVar(TrainSet)  #identifying variables with near zero variance
+TrainSet <- TrainSet[, -NZV]
+TestSet  <- TestSet[, -NZV]
+dim(TrainSet)
+
+MajNA    <- sapply(TrainSet, function(x) mean(is.na(x))) > 0.95  #identifying majority NA variables
+TrainSet <- TrainSet[, MajNA==F]
+TestSet  <- TestSet[, MajNA==F]
+dim(TrainSet)
+
+TrainSet <- TrainSet[, -(1:5)]    #identifying identity variables
+TestSet  <- TestSet[, -(1:5)]
+dim(TrainSet)
+```  
+
+##Choosing the Prediction Model
+###The candidate methods for building the prediction model are Linear Discriminant Analysis, Decision Tree, and Random Forests Methods. After a comprehensive comparison of their confusion matrices, one will be selected on the strength of their reported accuracies.   
+
+
+###Linear Discriminant Analysis  
+```{r linear, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+lineFit <- train(classe ~ ., data=TrainSet, method='lda')
+linePredict <- predict(lineFit, newdata=TestSet)  #prediction on test dataset
+lineMatrix <- confusionMatrix(linePredict, TestSet$classe)
+print(lineMatrix)
+plot(lineMatrix$table, col = lineMatrix$byClass, main = paste("LDA - Accuracy =", round(lineMatrix$overall['Accuracy'], 4)))
+```  
+
+
+
+###Decision Trees  
+```{r trees, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+treeFit <- rpart(classe ~ ., data=TrainSet, method='class')
+treePredict <- predict(treeFit, newdata=TestSet, type='class')  #prediction on test dataset
+treeMatrix <- confusionMatrix(treePredict, TestSet$classe)
+print(treeMatrix)
+plot(treeMatrix$table, col = treeMatrix$byClass, main = paste("Decision Tree - Accuracy =", round(treeMatrix$overall['Accuracy'], 4)))
+```  
+
+
+
+###Random Forests  
+```{r forests, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+forestFit <- randomForest(classe ~ ., data=TrainSet)
+forestPredict <- predict(forestFit, newdata=TestSet)  #prediction on test dataset
+forestMatrix <- confusionMatrix(forestPredict, TestSet$classe)
+print(forestMatrix)
+plot(forestMatrix$table, col = forestMatrix$byClass, main = paste("Random Forest - Accuracy =", round(forestMatrix$overall['Accuracy'], 4)))
+```  
+
+##With the highest accuracy of 99%, the Random Forests prediction is selected to predict with the validation (original test) dataset as shown:  
+
+
+
+```{r validation, echo = TRUE, fig.width=9, fig.height = 6, fig.align='center', cache=TRUE}
+testPredict <- predict(forestFit, newdata=testing)  #prediction on test dataset
+print(testPredict)
+```  
+
+
+###This ends the report.
